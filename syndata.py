@@ -11,10 +11,55 @@ import argparse
 from sklearn.metrics import roc_auc_score, average_precision_score
 
 from encoder_decoder import TransformerHawkes, LSTMPredictor
-from data_processing import load_clinical_trial_datasets, process_patient_df, convert_dict_to_df
+# from data_processing import load_clinical_trial_datasets
 import THP
 
+def convert_dict_to_df(patient_list, indicator_col, value_num_col, patient_id_col, time_col, label_col):
+    # order
+    # order = np.argsort([subject_col_ind, indicator_col_ind, value_col_ind, time_col_ind])
+    # df_dict = {reference_df.columns[subject_col_ind]: [], reference_df.columns[indicator_col_ind]: [], reference_df.columns[value_col_ind]: [], reference_df.columns[time_col_ind]: []}
+    df_dict = {patient_id_col: [], indicator_col: [], value_num_col: [], time_col: [], label_col: []}
+    
+    # patient_ids = np.unique(reference_df.iloc[:,subject_col_ind])
 
+    for pat_i, patient in enumerate(patient_list):
+        # print(patient)
+        patient_events, patient_values, patient_times, label = patient
+        df_dict[patient_id_col].extend([pat_i] * len(patient_events))
+        df_dict[indicator_col].extend(patient_events)
+        df_dict[value_num_col].extend(patient_values)
+        df_dict[time_col].extend(patient_times)
+        df_dict[label_col].extend([label] * len(patient_events))
+        # df_dict[reference_df.columns[subject_col_ind]].extend([patient_ids[pat_i]] * len(patient_events))
+        # df_dict[reference_df.columns[indicator_col_ind]].extend(patient_events)
+        # df_dict[reference_df.columns[value_col_ind]].extend(patient_values)
+        # df_dict[reference_df.columns[time_col_ind]].extend(patient_times)
+
+    # reconstructed_df =  pd.DataFrame(df_dict)
+    # for ind in [subject_col_ind, indicator_col_ind, value_col_ind, time_col_ind]:
+    #     reconstructed_df[reference_df.columns[ind]] = reconstructed_df[reference_df.columns[ind]].astype(reference_df.dtypes[reference_df.columns[ind]])
+    # reconstructed_df = reconstructed_df.sort_values(by=[reference_df.columns[subject_col_ind], reference_df.columns[time_col_ind]]).reset_index(drop=True)
+    reconstructed_df = pd.DataFrame(df_dict, columns=[patient_id_col, indicator_col, value_num_col, time_col, label_col])
+    reconstructed_df[indicator_col] = reconstructed_df[indicator_col].astype(str)
+    reconstructed_df[value_num_col] = reconstructed_df[value_num_col].astype(float)
+    reconstructed_df[time_col] = reconstructed_df[time_col].astype(float)
+    reconstructed_df[label_col] = reconstructed_df[label_col].astype(int)
+    reconstructed_df = reconstructed_df.sort_values(by=[patient_id_col, time_col]).reset_index(drop=True)
+    reconstructed_df[patient_id_col] = reconstructed_df[patient_id_col].astype(str)
+    return reconstructed_df
+
+
+def process_patient_df(df, patient_id_col, indicator_col, value_num_col, time_col, label_col):
+    # remove indicators with nans
+    # subject_col_ind=0, indicator_col_ind=1, value_col_ind=2, time_col_ind=3    
+ 
+    patient_list = df.groupby(patient_id_col).apply(lambda x: [x[indicator_col].tolist(), # event indicators
+                                                               x[value_num_col].tolist(), # event values
+                                                               x[time_col].tolist(), # event times
+                                                               x[label_col].values[0]] # label
+                                                               ).tolist()
+
+    return patient_list
 class PatientDataset(Dataset):
     def __init__(self, patients_list):
         self.patients_list = patients_list
@@ -339,15 +384,30 @@ if __name__=='__main__':
     assert args.run in [1,2,3,4,5,6,7]
     # assert args.mode in ['train', 'test', 'privacy','sanity_test']
 
-    # data_list, orig_df_list = load_clinical_trial_datasets(trial_path='./data/')
-    prefix_list = ['NCT00003299', 'NCT00041119', 'NCT00079274', 'NCT00174655', 'NCT00312208', 'NCT00694382', 'NCT03041311']
-    data_args = load_clinical_trial_datasets(trial_path='../data/', dataset_to_process=[prefix_list[args.run-1]])
-    data_args = data_args[0]
-    save_dir = args.log_dir.format(prefix_list[args.run-1], args.ts_representation_mode)
+    # # data_list, orig_df_list = load_clinical_trial_datasets(trial_path='./data/')
+    # prefix_list = ['NCT00003299', 'NCT00041119', 'NCT00079274', 'NCT00174655', 'NCT00312208', 'NCT00694382', 'NCT03041311']
+    # data_args = load_clinical_trial_datasets(trial_path='../data/', dataset_to_process=[prefix_list[args.run-1]])
+    # data_args = data_args[0]
+
+    test_df = pd.DataFrame({'patient_id': ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
+                            'event': ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'],
+                            'value': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                            'time': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                            'label': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]})
+    data_args = {
+        'df': test_df,
+        'indicator_col': 'event',
+        'value_num_col': 'value',
+        'patient_id_col': 'patient_id',
+        'time_col': 'time',
+        'label_col': 'label'
+    }
+    # save_dir = args.log_dir.format(prefix_list[args.run-1], args.ts_representation_mode)
+    save_dir = './'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    print('================== {} {} =================='.format(prefix_list[args.run-1], args.ts_representation_mode))
+    print('================== {} =================='.format(args.ts_representation_mode))
     if args.mode == 'train':
         gen_df = run_experiment(df=data_args['df'], 
                                            indicator_col=data_args['indicator_col'], 
