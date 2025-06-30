@@ -19,4 +19,4 @@ THP.py is taken from https://github.com/SimiaoZuo/Transformer-Hawkes-Process
 
 The code is in a very, very rough state. 
 
-Note that the [Project Data Sphere]([url](https://data.projectdatasphere.org/projectdatasphere/html/home)) datasets are locked behind a usage agreement, so we omit their inclusion here.
+Note that the [Project Data Sphere](https://data.projectdatasphere.org/projectdatasphere/html/home) datasets are locked behind a usage agreement, so we omit their inclusion here.
